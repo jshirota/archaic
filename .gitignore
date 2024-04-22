@@ -1,5 +1,6 @@
 __pycache__/
 dist/
 archaic.egg-info/
+test.geodatabase
 *.geodatabase-shm
 *.geodatabase-wal

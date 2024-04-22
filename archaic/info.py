@@ -72,7 +72,7 @@ class Info(Generic[T]):
                 return upper_field_name.replace("SHAPE_", "SHAPE@")
 
             if upper_field_name not in upper_field_names:
-                raise ValueError(f"'{field_name}' not found.")
+                raise ValueError(f"'{field_name}' not found in {self.catalog_path}.")
 
             return field_name
 
