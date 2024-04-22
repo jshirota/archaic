@@ -42,8 +42,8 @@ class FeatureClass(Generic[T]):
                         **{p: d.get(f) if f else None for p, f in properties}
                     )
 
-    def get(self, oid: Union[int, str], wkid: Optional[int] = None) -> Optional[T]:
-        for where_clause in self._get_where_clauses(oid):
+    def get(self, id: Union[int, str], wkid: Optional[int] = None) -> Optional[T]:
+        for where_clause in self._get_where_clauses(id):
             for item in self.read(where_clause, wkid):
                 return item
         return None
