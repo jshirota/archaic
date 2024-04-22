@@ -154,8 +154,8 @@ class FeatureClass(Generic[T]):
             yield self._get_oid(obj)
         elif isinstance(obj, list):
             for o in obj:
-                for _id in self._get_ids(o):
-                    yield _id
+                for id in self._get_ids(o):
+                    yield id
 
     def _get_oid(self, item) -> int:
         if not self.info.oid_property_name:

@@ -52,6 +52,8 @@ class Info(Generic[T]):
 
         if self.dynamic:
             for field_name in field_names:
+                if field_name == self.oid_field_name:
+                    self.oid_property_name = field_name
                 self.properties[field_name] = field_name
                 if field_name.upper() not in upper_read_only_field_names:
                     self.edit_properties[field_name] = field_name
