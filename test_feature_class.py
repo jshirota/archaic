@@ -82,6 +82,23 @@ def try_mines(feature_class: FeatureClass[TMine]):
     update_mines(feature_class)
 
 
+class R:
+    objectid: int
+
+
+class F:
+    shape: arcpy.Multipoint
+
+
+class Mine1(R, F):
+    name_e: str
+    type_e: str
+
+
+def test_mine1():
+    try_mines(FeatureClass[Mine1]("main.mines_pt"))
+
+
 class Mine2:
     objectid: int
     name_e: str
