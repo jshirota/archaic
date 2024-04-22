@@ -4,7 +4,7 @@ import re
 from inspect import signature
 from itertools import chain
 from types import SimpleNamespace
-from typing import Dict, Generic, Optional, Set, Type, TypeVar
+from typing import Dict, Generic, Set, Type, TypeVar
 
 T = TypeVar("T")
 
@@ -21,19 +21,17 @@ class Info(Generic[T]):
         description = arcpy.Describe(feature_class._table)
         self.catalog_path: str = description.catalogPath  # type: ignore
 
-        field_names: Set[str] = set()
-        upper_field_names: Set[str] = set()
+        upper_field_names: Dict[str, str] = {}
         upper_read_only_field_names: Set[str] = set()
 
-        self.oid_field_name: Optional[str] = None
-        self.oid_property_name: Optional[str] = None
+        self.oid_field_name: str
+        self.oid_property_name: str
 
         for field in description.fields:  # type: ignore
             if not re.match(r"^(?!\d)[\w$]+$", field.name):
                 continue
 
-            field_names.add(field.name)
-            upper_field_names.add(field.name.upper())
+            upper_field_names[field.name.upper()] = field.name
 
             if field.type == "OID":
                 self.oid_field_name = field.name
@@ -51,11 +49,11 @@ class Info(Generic[T]):
         self.edit_properties: Dict[str, str] = {}
 
         if self.dynamic:
-            for field_name in field_names:
+            for upper_field_name, field_name in upper_field_names.items():
                 if field_name == self.oid_field_name:
                     self.oid_property_name = field_name
                 self.properties[field_name] = field_name
-                if field_name.upper() not in upper_read_only_field_names:
+                if upper_field_name not in upper_read_only_field_names:
                     self.edit_properties[field_name] = field_name
             return
 
@@ -63,9 +61,6 @@ class Info(Generic[T]):
             field_name: str = feature_class._mapping.get(property) or property
             upper_field_name = property.upper()
 
-            if upper_field_name == "OID":
-                self.oid_property_name = property
-                return "OID@"
             if upper_field_name == "SHAPE":
                 return "SHAPE@"
             if upper_field_name.startswith("SHAPE_"):
@@ -74,12 +69,14 @@ class Info(Generic[T]):
             if upper_field_name not in upper_field_names:
                 raise ValueError(f"'{field_name}' not found in {self.catalog_path}.")
 
-            return field_name
+            return upper_field_names[upper_field_name]
 
         for model_type in reversed(self.model.mro()):
             if hasattr(model_type, "__annotations__"):
                 for property in model_type.__annotations__:
                     field_name = get_field_name(property)
+                    if field_name == self.oid_field_name:
+                        self.oid_property_name = property
                     self.properties[property] = field_name
                     if field_name.upper() not in upper_read_only_field_names:
                         self.edit_properties[property] = field_name

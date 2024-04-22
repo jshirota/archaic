@@ -7,7 +7,7 @@ from archaic import FeatureClass
 
 @dataclass(frozen=True)
 class Mine:
-    oid: int
+    objectid: int
     name_e: str
     type_e: str
     shape: arcpy.Multipoint
@@ -26,7 +26,7 @@ class TestMines(unittest.TestCase):
         info = feature_class.info
         self.assertTrue(info.catalog_path.endswith("main.mines_pt"))
         self.assertTrue(info.oid_field_name == "OBJECTID")
-        self.assertTrue(info.oid_property_name == "oid")
+        self.assertTrue(info.oid_property_name == "objectid")
 
     def test_read_mines_1(self):
         feature_class = FeatureClass[Mine]("main.mines_pt")
@@ -36,11 +36,15 @@ class TestMines(unittest.TestCase):
     def test_read_mines_2(self):
         feature_class = FeatureClass[Mine]("main.mines_pt")
         for feature in feature_class.read([1, 3, 5, 7]):
-            self.assertTrue(feature.oid in [1, 3, 5, 7])
+            self.assertTrue(feature.objectid in [1, 3, 5, 7])
 
     def test_get_mines_1(self):
         feature_class = FeatureClass[Mine]("main.mines_pt")
         mine = feature_class.get(7)
-        self.assertTrue(mine and mine.oid == 7)
+        self.assertTrue(mine and mine.objectid == 7)
         mine = feature_class.get(9999)
         self.assertTrue(mine is None)
+
+
+if __name__ == "__main__":
+    unittest.main()
