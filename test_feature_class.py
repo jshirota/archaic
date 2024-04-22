@@ -44,23 +44,29 @@ def get_mines(feature_class: FeatureClass[TMine]):
     assert mine is None
 
 
+def insert_mines(feature_class: FeatureClass[TMine]):
+    mine = feature_class.get(12)
+    assert mine
+    mine2 = feature_class.insert(mine)
+    assert mine2.objectid != mine.objectid
+    assert mine2.name_e == mine.name_e
+    assert mine2.type_e == mine.type_e
+    assert mine2.shape.firstPoint.X == mine.shape.firstPoint.X
+    assert mine2.shape.firstPoint.Y == mine.shape.firstPoint.Y
+
+
 def update_mines(feature_class: FeatureClass[TMine]):
     type_e = uuid.uuid4().hex[:8]
-
     assert (mine := feature_class.get(8)) and mine.type_e != type_e
-
     mine.type_e = type_e
     feature_class.update(mine)
-
     assert (mine := feature_class.get(8)) and mine.type_e == type_e
-
     type_e = uuid.uuid4().hex[:8]
 
     def update(mine: TMine):
         mine.type_e = type_e
 
     feature_class.update_where("name_e LIKE '%e%'", update)
-
     for mine in feature_class.read():
         if "e" in mine.name_e.lower():
             assert mine.type_e == type_e
@@ -72,6 +78,7 @@ def try_mines(feature_class: FeatureClass[TMine]):
     info_mines(feature_class)
     read_mines(feature_class)
     get_mines(feature_class)
+    insert_mines(feature_class)
     update_mines(feature_class)
 
 
