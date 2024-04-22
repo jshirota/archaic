@@ -27,7 +27,7 @@ class FeatureClass(Generic[T]):
 
         catalog_path = self.info.catalog_path
         fields = [f for f in self.info.properties.values() if f]
-        properties = self.info.properties.items()
+        properties = self.info.properties
 
         if where_clause_or_ids is None or isinstance(where_clause_or_ids, str):
             where_clauses = [where_clause_or_ids]
@@ -39,7 +39,7 @@ class FeatureClass(Generic[T]):
                 for row in cursor:
                     d = dict(zip(fields, row))
                     yield self._create(
-                        **{p: d.get(f) if f else None for p, f in properties}
+                        **{p: d.get(f) if f else None for p, f in properties.items()}
                     )
 
     def get(self, id: Union[int, str], wkid: Optional[int] = None) -> Optional[T]:
@@ -69,13 +69,15 @@ class FeatureClass(Generic[T]):
     ) -> int:
         catalog_path = self.info.catalog_path
         fields = [f for f in self.info.edit_properties.values() if f]
-        properties = list(self.info.edit_properties.keys())
+        properties = self.info.edit_properties
         count = 0
 
         with arcpy.da.UpdateCursor(catalog_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
             for row in cursor:
-                before = self.info.model()
-                self._set_values(before, properties, row)
+                d = dict(zip(fields, row))
+                before = self._create(
+                    **{p: d.get(f) if f else None for p, f in properties.items()}
+                )
                 result = update(before)
                 after = before if result is None else result
                 cursor.updateRow(self._get_values(after, properties))
@@ -112,11 +114,7 @@ class FeatureClass(Generic[T]):
             **{k: v for k, v in kwargs.items() if k in self.info.properties}
         )
 
-    def _set_values(self, item: T, properties: List[str], values: List[Any]) -> None:
-        for i, property in enumerate(properties):
-            setattr(item, property, values[i])
-
-    def _get_values(self, item: T, properties: List[str]) -> List[Any]:
+    def _get_values(self, item: T, properties: Iterable[str]) -> List[Any]:
         values: List[Any] = []
         for property in properties:
             values.append(getattr(item, property) if hasattr(item, property) else None)

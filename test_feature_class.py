@@ -1,0 +1,109 @@
+import arcpy
+import shutil
+import uuid
+from dataclasses import dataclass
+from typing import Generic, Protocol, TypeVar
+
+from archaic import FeatureClass
+
+
+geodatabase = r".data\\canada.geodatabase"
+test_geodatabase = r".data\\test.geodatabase"
+shutil.copyfile(geodatabase, test_geodatabase)
+arcpy.env.workspace = test_geodatabase  # type: ignore
+
+
+class Mine(Protocol):
+    objectid: int
+    name_e: str
+    type_e: str
+    shape: arcpy.Multipoint
+
+
+TMine = TypeVar("TMine", bound=Mine)
+
+
+def info_mines(feature_class: FeatureClass[TMine]):
+    info = feature_class.info
+    assert info.catalog_path.endswith("main.mines_pt")
+    assert info.oid_field_name == "OBJECTID"
+    assert info.oid_property_name == "objectid"
+
+
+def read_mines(feature_class: FeatureClass[TMine]):
+    for feature in feature_class.read("name_e LIKE 'c%'"):
+        assert feature.name_e.startswith("C")
+    for feature in feature_class.read([1, 3, 5, 7]):
+        assert feature.objectid in [1, 3, 5, 7]
+
+
+def get_mines(feature_class: FeatureClass[TMine]):
+    mine = feature_class.get(7)
+    assert mine and mine.objectid == 7
+    mine = feature_class.get(9999)
+    assert mine is None
+
+
+def update_mines(feature_class: FeatureClass[TMine]):
+    mine = feature_class.get(8)
+    name_e = uuid.uuid4().hex
+    assert mine
+    assert mine.name_e != name_e
+    mine.name_e = name_e
+    feature_class.update(mine)
+    mine = feature_class.get(8)
+    assert mine
+    assert mine.name_e == name_e
+
+
+def try_mines(feature_class: FeatureClass[TMine]):
+    info_mines(feature_class)
+    read_mines(feature_class)
+    get_mines(feature_class)
+    update_mines(feature_class)
+
+
+class Mine2:
+    objectid: int
+    name_e: str
+    type_e: str
+    shape: arcpy.Multipoint
+
+
+def test_mine2():
+    try_mines(FeatureClass[Mine2]("main.mines_pt"))
+
+
+@dataclass
+class Mine3:
+    objectid: int
+    name_e: str
+    type_e: str
+    shape: arcpy.Multipoint
+
+
+def test_mine3():
+    try_mines(FeatureClass[Mine3]("main.mines_pt"))
+
+
+@dataclass
+class Row:
+    objectid: int
+
+
+TGeometry = TypeVar("TGeometry", bound=arcpy.Geometry)
+
+
+@dataclass
+class Feature(Generic[TGeometry], Row):
+    shape: TGeometry
+
+
+@dataclass
+class Mine4(Feature[arcpy.Multipoint]):
+    name_e: str
+    type_e: str
+
+
+def test_mine4():
+    try_mines(FeatureClass[Mine4]("main.mines_pt"))
