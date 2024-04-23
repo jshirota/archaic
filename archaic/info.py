@@ -15,12 +15,10 @@ class Info(Generic[T]):
             model = feature_class.__orig_class__.__args__[0]
         else:
             model = SimpleNamespace
-
         keys = chain(
             signature(model.__init__).parameters.keys(),
             signature(model.__new__).parameters.keys(),
         )
-
         description = arcpy.Describe(feature_class._table)
 
         # Members.

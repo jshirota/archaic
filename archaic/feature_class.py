@@ -51,7 +51,7 @@ class FeatureClass(Generic[T]):
     def insert_many(self, items: Iterable[T], **kwargs: Optional[Any]) -> List[int]:
         catalog_path = self.info.catalog_path
         fields = [f for f in self.info.edit_properties.values() if f]
-        properties = list(self.info.edit_properties.keys())
+        properties = self.info.edit_properties
 
         with arcpy.da.InsertCursor(catalog_path, fields, **kwargs) as cursor:  # type: ignore
             return [
