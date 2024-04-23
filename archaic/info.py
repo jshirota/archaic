@@ -11,68 +11,72 @@ T = TypeVar("T")
 
 class Info(Generic[T]):
     def __init__(self, feature_class) -> None:
-        if hasattr(feature_class, "__orig_class__"):
-            model = feature_class.__orig_class__.__args__[0]
-        else:
-            model = SimpleNamespace
-        keys = chain(
-            signature(model.__init__).parameters.keys(),
-            signature(model.__new__).parameters.keys(),
-        )
-        description = arcpy.Describe(feature_class._table)
-
         # Members.
-        self.model: Type[T] = model  # type: ignore
-        self.has_parameterless_constructor = len(set(keys)) == 3
-        self.catalog_path: str = description.catalogPath  # type: ignore
-        self.oid_field_name: str
-        self.oid_property_name: str
+        self.model: Type[T] = (  # type: ignore
+            feature_class.__orig_class__.__args__[0]
+            if hasattr(feature_class, "__orig_class__")
+            else SimpleNamespace
+        )
+        self.has_default_constructor = (
+            len(
+                set(
+                    chain(
+                        signature(self.model.__init__).parameters.keys(),
+                        signature(self.model.__new__).parameters.keys(),
+                    )
+                )
+            )
+            == 3
+        )
+        self.description = arcpy.Describe(feature_class._table)
+        self.catalog_path: str = self.description.catalogPath  # type: ignore
+        self.oid_field: str
+        self.oid_property: str
         self.properties: Dict[str, str] = {}
         self.edit_properties: Dict[str, str] = {}
 
-        upper_field_names: Dict[str, str] = {}
-        upper_read_only_field_names: Set[str] = set()
-
-        for field in description.fields:  # type: ignore
+        # Inspect the fields.
+        upper_fields: Dict[str, str] = {}
+        upper_read_only_fields: Set[str] = set()
+        for field in self.description.fields:  # type: ignore
             if re.match(r"^(?!\d)[\w$]+$", field.name):
-                upper_field_names[field.name.upper()] = field.name
+                upper_fields[field.name.upper()] = field.name
                 if field.type == "OID":
-                    self.oid_field_name = field.name
+                    self.oid_field = field.name
                 elif not field.editable:
-                    upper_read_only_field_names.add(field.name.upper())
+                    upper_read_only_fields.add(field.name.upper())
 
-        if model == SimpleNamespace:
-            field_to_property: Dict[str, str] = {
-                f.upper(): p for p, f in feature_class._mapping.items()
-            }
-            for upper_field_name, field_name in upper_field_names.items():
-                property = field_to_property.get(field_name.upper()) or field_name
-                if upper_field_name == "SHAPE":
-                    field_name = "SHAPE@"
-                self.properties[property] = field_name
-                if field_name == self.oid_field_name:
-                    self.oid_property_name = property
-                if upper_field_name not in upper_read_only_field_names:
-                    self.edit_properties[property] = field_name
-            return
+        def resolve_fields():
+            if self.model == SimpleNamespace:
+                upper_field_to_property: Dict[str, str] = {
+                    f.upper(): p for p, f in feature_class._mapping.items()
+                }
+                for upper_field, field in upper_fields.items():
+                    property = upper_field_to_property.get(upper_field) or field
+                    if upper_field == "SHAPE":
+                        field = "SHAPE@"
+                    yield property, field
+            else:
+                for model_type in reversed(self.model.mro()):
+                    if hasattr(model_type, "__annotations__"):
+                        for property in model_type.__annotations__:
+                            field = feature_class._mapping.get(property) or property
+                            upper_field = field.upper()
+                            if upper_field == "SHAPE":
+                                field = "SHAPE@"
+                            elif upper_field.startswith("SHAPE_"):
+                                field = upper_field.replace("SHAPE_", "SHAPE@")
+                            elif upper_field not in upper_fields:
+                                raise ValueError(
+                                    f"'{field}' not found in {self.catalog_path}."
+                                )
+                            else:
+                                field = upper_fields[upper_field]
+                            yield property, field
 
-        def get_field_name(property: str):
-            field_name: str = feature_class._mapping.get(property) or property
-            upper_field_name = field_name.upper()
-            if upper_field_name == "SHAPE":
-                return "SHAPE@"
-            if upper_field_name.startswith("SHAPE_"):
-                return upper_field_name.replace("SHAPE_", "SHAPE@")
-            if upper_field_name not in upper_field_names:
-                raise ValueError(f"'{field_name}' not found in {self.catalog_path}.")
-            return upper_field_names[upper_field_name]
-
-        for model_type in reversed(self.model.mro()):
-            if hasattr(model_type, "__annotations__"):
-                for property in model_type.__annotations__:
-                    field_name = get_field_name(property)
-                    self.properties[property] = field_name
-                    if field_name == self.oid_field_name:
-                        self.oid_property_name = property
-                    if field_name.upper() not in upper_read_only_field_names:
-                        self.edit_properties[property] = field_name
+        for property, field in resolve_fields():
+            self.properties[property] = field
+            if field == self.oid_field:
+                self.oid_property = property
+            if field.upper() not in upper_read_only_fields:
+                self.edit_properties[property] = field

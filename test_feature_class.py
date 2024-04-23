@@ -26,8 +26,8 @@ TMine = TypeVar("TMine", bound=Mine)
 def info_mines(feature_class: FeatureClass[TMine]):
     info = feature_class.info
     assert info.catalog_path.endswith("main.mines_pt")
-    assert info.oid_field_name == "OBJECTID"
-    assert info.oid_property_name == "objectid"
+    assert info.oid_field == "OBJECTID"
+    assert info.oid_property == "objectid"
 
 
 def read_mines(feature_class: FeatureClass[TMine]):

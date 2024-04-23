@@ -26,7 +26,7 @@ class FeatureClass(Generic[T]):
             kwargs["spatial_reference"] = arcpy.SpatialReference(wkid)
 
         catalog_path = self.info.catalog_path
-        fields = [f for f in self.info.properties.values() if f]
+        fields = list(self.info.properties.values())
         properties = self.info.properties
 
         if where_clause_or_ids is None or isinstance(where_clause_or_ids, str):
@@ -50,7 +50,7 @@ class FeatureClass(Generic[T]):
 
     def insert_many(self, items: Iterable[T], **kwargs: Optional[Any]) -> List[int]:
         catalog_path = self.info.catalog_path
-        fields = [f for f in self.info.edit_properties.values() if f]
+        fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
 
         with arcpy.da.InsertCursor(catalog_path, fields, **kwargs) as cursor:  # type: ignore
@@ -65,10 +65,10 @@ class FeatureClass(Generic[T]):
         self,
         where_clause: Optional[str],
         update: Callable[[T], Union[None, T]],
-        **kwargs: Optional[Any],
+        **kwargs: Any,
     ) -> int:
         catalog_path = self.info.catalog_path
-        fields = [f for f in self.info.edit_properties.values() if f]
+        fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
         count = 0
 
@@ -94,7 +94,7 @@ class FeatureClass(Generic[T]):
         catalog_path = self.info.catalog_path
         count = 0
 
-        with arcpy.da.UpdateCursor(catalog_path, self.info.oid_field_name, where_clause) as cursor:  # type: ignore
+        with arcpy.da.UpdateCursor(catalog_path, self.info.oid_field, where_clause) as cursor:  # type: ignore
             for _ in cursor:
                 cursor.deleteRow()
                 count += 1
@@ -105,7 +105,7 @@ class FeatureClass(Generic[T]):
             self.delete_where(where_clause)
 
     def _create(self, **kwargs: Any):
-        if self.info.has_parameterless_constructor:
+        if self.info.has_default_constructor:
             item = self.info.model()
             for property in self.info.properties:
                 setattr(item, property, kwargs.get(property))
@@ -130,7 +130,7 @@ class FeatureClass(Generic[T]):
             first = chunk[0]
             if isinstance(first, int):
                 where_clauses.append(
-                    f"{self.info.oid_field_name} IN ({','.join(map(str, chunk))})"
+                    f"{self.info.oid_field} IN ({','.join(map(str, chunk))})"
                 )
             elif isinstance(first, str):
                 where_clauses.append(
@@ -156,8 +156,8 @@ class FeatureClass(Generic[T]):
                     yield id
 
     def _get_oid(self, item) -> int:
-        if not self.info.oid_property_name:
+        if not self.info.oid_property:
             raise TypeError(
                 f"'{self.info.model.__name__}' is missing the OID property."
             )
-        return getattr(item, self.info.oid_property_name)
+        return getattr(item, self.info.oid_property)
