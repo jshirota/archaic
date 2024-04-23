@@ -44,12 +44,18 @@ class Info(Generic[T]):
                     upper_read_only_field_names.add(field.name.upper())
 
         if model == SimpleNamespace:
+            field_to_property: Dict[str, str] = {
+                f.upper(): p for p, f in feature_class._mapping.items()
+            }
             for upper_field_name, field_name in upper_field_names.items():
-                self.properties[field_name] = field_name
+                property = field_to_property.get(field_name.upper()) or field_name
+                if upper_field_name == "SHAPE":
+                    field_name = "SHAPE@"
+                self.properties[property] = field_name
                 if field_name == self.oid_field_name:
-                    self.oid_property_name = field_name
+                    self.oid_property_name = property
                 if upper_field_name not in upper_read_only_field_names:
-                    self.edit_properties[field_name] = field_name
+                    self.edit_properties[property] = field_name
             return
 
         def get_field_name(property: str):

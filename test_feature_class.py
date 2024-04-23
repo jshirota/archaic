@@ -143,3 +143,14 @@ class Mine4(Feature[arcpy.Multipoint]):
 
 def test_mine4():
     try_mines(FeatureClass[Mine4]("main.mines_pt"))
+
+
+def test_mine5():
+    fc = FeatureClass(
+        "main.mines_pt",
+        objectid="OBJECTID",
+        name_e="NAME_E",
+        type_e="TYPE_E",
+        shape="SHAPE",
+    )
+    try_mines(fc)
