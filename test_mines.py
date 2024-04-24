@@ -17,7 +17,7 @@ class Mine(Protocol):
     objectid: int
     name_e: str
     type_e: str
-    shape: arcpy.Multipoint
+    shape: arcpy.PointGeometry
 
 
 TMine = TypeVar("TMine", bound=Mine)
@@ -87,7 +87,7 @@ class R:
 
 
 class F:
-    shape: arcpy.Multipoint
+    shape: arcpy.PointGeometry
 
 
 class Mine1(R, F):
@@ -103,7 +103,7 @@ class Mine2:
     objectid: int
     name_e: str
     type_e: str
-    shape: arcpy.Multipoint
+    shape: arcpy.PointGeometry
 
 
 def test_mine2():
@@ -115,7 +115,7 @@ class Mine3:
     objectid: int
     name_e: str
     type_e: str
-    shape: arcpy.Multipoint
+    shape: arcpy.PointGeometry
 
 
 def test_mine3():
@@ -136,7 +136,7 @@ class Feature(Generic[TGeometry], Row):
 
 
 @dataclass
-class Mine4(Feature[arcpy.Multipoint]):
+class Mine4(Feature[arcpy.PointGeometry]):
     name_e: str
     type_e: str
 
