@@ -11,6 +11,8 @@ T = TypeVar("T")
 
 class Info(Generic[T]):
     def __init__(self, feature_class) -> None:
+        description = arcpy.Describe(feature_class._data_path)
+
         # Members.
         self.model: Type[T] = (  # type: ignore
             feature_class.__orig_class__.__args__[0]
@@ -28,8 +30,7 @@ class Info(Generic[T]):
             )
             == 3
         )
-        self.description = arcpy.Describe(feature_class._table)
-        self.catalog_path: str = self.description.catalogPath  # type: ignore
+        self.data_path: str = description.catalogPath  # type: ignore
         self.oid_field: str
         self.oid_property: str
         self.properties: Dict[str, str] = {}
@@ -38,7 +39,7 @@ class Info(Generic[T]):
         # Inspect the fields.
         upper_fields: Dict[str, str] = {}
         upper_read_only_fields: Set[str] = set()
-        for field in self.description.fields:  # type: ignore
+        for field in description.fields:  # type: ignore
             if re.match(r"^(?!\d)[\w$]+$", field.name):
                 upper_fields[field.name.upper()] = field.name
                 if field.type == "OID":
@@ -68,7 +69,7 @@ class Info(Generic[T]):
                                 field = upper_field.replace("SHAPE_", "SHAPE@")
                             elif upper_field not in upper_fields:
                                 raise ValueError(
-                                    f"'{field}' not found in {self.catalog_path}."
+                                    f"Field '{field}' not found in {self.data_path}."
                                 )
                             else:
                                 field = upper_fields[upper_field]

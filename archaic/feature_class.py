@@ -1,13 +1,14 @@
 import arcpy
 from typing import Any, Callable, Generic, Iterable, List, Optional, TypeVar, Union
 from archaic.info import Info
+from archaic.predicate import to_sql
 
 T = TypeVar("T")
 
 
 class FeatureClass(Generic[T]):
-    def __init__(self, table: str, **mapping: str) -> None:
-        self._table = table
+    def __init__(self, data_path: str, **mapping: str) -> None:
+        self._data_path = data_path
         self._mapping = mapping
 
     @property
@@ -18,24 +19,29 @@ class FeatureClass(Generic[T]):
 
     def read(
         self,
-        where_clause_or_ids: Union[str, Iterable[int], Iterable[str], None] = None,
+        filter: Union[
+            str, Callable[[T], bool], Iterable[int], Iterable[str], None
+        ] = None,
         wkid: Optional[int] = None,
         **kwargs: Any,
     ) -> Iterable[T]:
         if wkid is not None:
             kwargs["spatial_reference"] = arcpy.SpatialReference(wkid)
 
-        catalog_path = self.info.catalog_path
+        data_path = self.info.data_path
         fields = list(self.info.properties.values())
         properties = self.info.properties
 
-        if where_clause_or_ids is None or isinstance(where_clause_or_ids, str):
-            where_clauses = [where_clause_or_ids]
+        if callable(filter):
+            filter = to_sql(filter, self.info.properties)
+
+        if filter is None or isinstance(filter, str):
+            where_clauses = [filter]
         else:
-            where_clauses = self._get_where_clauses(list(where_clause_or_ids))  # type: ignore
+            where_clauses = self._get_where_clauses(list(filter))  # type: ignore
 
         for where_clause in where_clauses:
-            with arcpy.da.SearchCursor(catalog_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
+            with arcpy.da.SearchCursor(data_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
                 for row in cursor:
                     d = dict(zip(fields, row))
                     yield self._create(
@@ -49,11 +55,11 @@ class FeatureClass(Generic[T]):
         return None
 
     def insert_many(self, items: Iterable[T], **kwargs: Optional[Any]) -> List[int]:
-        catalog_path = self.info.catalog_path
+        data_path = self.info.data_path
         fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
 
-        with arcpy.da.InsertCursor(catalog_path, fields, **kwargs) as cursor:  # type: ignore
+        with arcpy.da.InsertCursor(data_path, fields, **kwargs) as cursor:  # type: ignore
             return [
                 cursor.insertRow(self._get_values(item, properties)) for item in items
             ]
@@ -63,16 +69,19 @@ class FeatureClass(Generic[T]):
 
     def update_where(
         self,
-        where_clause: Optional[str],
+        filter: Union[str, Callable[[T], bool], None],
         update: Callable[[T], Union[None, T]],
         **kwargs: Any,
     ) -> int:
-        catalog_path = self.info.catalog_path
+        where_clause = (
+            to_sql(filter, self.info.properties) if callable(filter) else filter
+        )
+        data_path = self.info.data_path
         fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
         count = 0
 
-        with arcpy.da.UpdateCursor(catalog_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
+        with arcpy.da.UpdateCursor(data_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
             for row in cursor:
                 d = dict(zip(fields, row))
                 before = self._create(
@@ -90,11 +99,14 @@ class FeatureClass(Generic[T]):
         for where_clause in self._get_where_clauses(items):
             self.update_where(where_clause, lambda x: cache[self._get_oid(x)])
 
-    def delete_where(self, where_clause: Optional[str]) -> int:
-        catalog_path = self.info.catalog_path
+    def delete_where(self, filter: Union[str, Callable[[T], bool], None]) -> int:
+        where_clause = (
+            to_sql(filter, self.info.properties) if callable(filter) else filter
+        )
+        data_path = self.info.data_path
         count = 0
 
-        with arcpy.da.UpdateCursor(catalog_path, self.info.oid_field, where_clause) as cursor:  # type: ignore
+        with arcpy.da.UpdateCursor(data_path, self.info.oid_field, where_clause) as cursor:  # type: ignore
             for _ in cursor:
                 cursor.deleteRow()
                 count += 1
