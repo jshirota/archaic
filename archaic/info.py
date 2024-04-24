@@ -4,32 +4,31 @@ import re
 from inspect import signature
 from itertools import chain
 from types import SimpleNamespace
-from typing import Dict, Generic, Set, Type, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Set, Type, TypeVar
+
+if TYPE_CHECKING:
+    from archaic.feature_class import FeatureClass
 
 T = TypeVar("T")
 
 
 class Info(Generic[T]):
-    def __init__(self, feature_class) -> None:
+    def __init__(self, feature_class: "FeatureClass[T]") -> None:
+        if hasattr(feature_class, "__orig_class__"):
+            model = feature_class.__orig_class__.__args__[0]  # type: ignore
+        else:
+            model = SimpleNamespace
+
+        keys = chain(
+            signature(model.__init__).parameters.keys(),
+            signature(model.__new__).parameters.keys(),
+        )
+
         description = arcpy.Describe(feature_class._data_path)
 
         # Members.
-        self.model: Type[T] = (  # type: ignore
-            feature_class.__orig_class__.__args__[0]
-            if hasattr(feature_class, "__orig_class__")
-            else SimpleNamespace
-        )
-        self.has_default_constructor = (
-            len(
-                set(
-                    chain(
-                        signature(self.model.__init__).parameters.keys(),
-                        signature(self.model.__new__).parameters.keys(),
-                    )
-                )
-            )
-            == 3
-        )
+        self.model: Type[T] = model  # type: ignore
+        self.has_default_constructor = len(set(keys)) == 3
         self.data_path: str = description.catalogPath  # type: ignore
         self.oid_field: str
         self.oid_property: str
@@ -48,7 +47,7 @@ class Info(Generic[T]):
                     upper_read_only_fields.add(field.name.upper())
 
         def resolve_fields():
-            if self.model == SimpleNamespace:
+            if model == SimpleNamespace:
                 upper_field_to_property: Dict[str, str] = {
                     f.upper(): p for p, f in feature_class._mapping.items()
                 }
@@ -58,7 +57,7 @@ class Info(Generic[T]):
                         field = "SHAPE@"
                     yield property, field
             else:
-                for model_type in reversed(self.model.mro()):
+                for model_type in reversed(model.mro()):
                     if hasattr(model_type, "__annotations__"):
                         for property in model_type.__annotations__:
                             field = feature_class._mapping.get(property) or property

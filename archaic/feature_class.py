@@ -8,6 +8,22 @@ T = TypeVar("T")
 
 class FeatureClass(Generic[T]):
     def __init__(self, data_path: str, **mapping: str) -> None:
+        """Initializes the feature class.  e.g.
+
+            class City:
+                objectid: int
+                city_name: str
+                shape: arcpy.PointGeometry
+
+            cities_fc = FeatureClass [City] ('world.gdb/cities')
+
+            for city in cities_fc.read():
+                print(city.city_name, city.shape.WKT)
+
+        Args:
+            data_path (str): Feature class path.
+            mapping: Custom mapping of property to field.
+        """
         self._data_path = data_path
         self._mapping = mapping
 
