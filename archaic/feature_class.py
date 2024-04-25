@@ -1,5 +1,5 @@
 import arcpy
-from typing import Any, Callable, Generic, Iterable, List, Optional, TypeVar, Union
+from typing import Any, Callable, Generic, Iterable, List, Optional, Set, TypeVar, Union
 from archaic.info import Info
 from archaic.predicate import to_sql
 
@@ -41,22 +41,21 @@ class FeatureClass(Generic[T]):
         wkid: Optional[int] = None,
         **kwargs: Any,
     ) -> Iterable[T]:
+        """Queries the feature class.
+
+        Args:
+            filter: Where clause, lambda expression, object ids or global ids.  Defaults to None.
+            wkid: Well-known id (e.g. 4326).  Defaults to None.
+
+        Returns:
+            Iterable[T]: Strongly typed items.
+        """
         if wkid is not None:
             kwargs["spatial_reference"] = arcpy.SpatialReference(wkid)
-
         data_path = self.info.data_path
         fields = list(self.info.properties.values())
         properties = self.info.properties
-
-        if callable(filter):
-            filter = to_sql(filter, self.info.properties)
-
-        if filter is None or isinstance(filter, str):
-            where_clauses = [filter]
-        else:
-            where_clauses = self._get_where_clauses(list(filter))  # type: ignore
-
-        for where_clause in where_clauses:
+        for where_clause in self._get_where_clauses_from_filter(filter):
             with arcpy.da.SearchCursor(data_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
                 for row in cursor:
                     d = dict(zip(fields, row))
@@ -65,16 +64,24 @@ class FeatureClass(Generic[T]):
                     )
 
     def get(self, id: Union[int, str], wkid: Optional[int] = None) -> Optional[T]:
-        for where_clause in self._get_where_clauses(id):
+        """Gets an item from the feature class.
+
+        Args:
+            id: Object id or global id.
+            wkid: Well-known id (e.g. 4326).  Defaults to None.
+
+        Returns:
+            Optional[T]: Strongly typed item if found.
+        """
+        for where_clause in self._get_where_clauses_from_ids(id):
             for item in self.read(where_clause, wkid):
                 return item
         return None
 
-    def insert_many(self, items: Iterable[T], **kwargs: Optional[Any]) -> List[int]:
+    def insert_many(self, items: Iterable[T], **kwargs: Any) -> List[int]:
         data_path = self.info.data_path
         fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
-
         with arcpy.da.InsertCursor(data_path, fields, **kwargs) as cursor:  # type: ignore
             return [
                 cursor.insertRow(self._get_values(item, properties)) for item in items
@@ -85,54 +92,58 @@ class FeatureClass(Generic[T]):
 
     def update_where(
         self,
-        filter: Union[str, Callable[[T], bool], None],
+        filter: Union[str, Callable[[T], bool], Iterable[int], Iterable[str], None],
         update: Callable[[T], Union[None, T]],
         **kwargs: Any,
-    ) -> int:
-        where_clause = (
-            to_sql(filter, self.info.properties) if callable(filter) else filter
-        )
+    ) -> List[int]:
         data_path = self.info.data_path
         fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
-        count = 0
+        ids: Set[int] = set()
+        for where_clause in self._get_where_clauses_from_filter(filter):
+            with arcpy.da.UpdateCursor(data_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
+                for row in cursor:
+                    d = dict(zip(fields, row))
+                    before = self._create(
+                        **{p: d.get(f) if f else None for p, f in properties.items()}
+                    )
+                    result = update(before)
+                    after = before if result is None else result
+                    cursor.updateRow(self._get_values(after, properties))
+                    ids.add(self._get_oid(before))
+        return list(ids)
 
-        with arcpy.da.UpdateCursor(data_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
-            for row in cursor:
-                d = dict(zip(fields, row))
-                before = self._create(
-                    **{p: d.get(f) if f else None for p, f in properties.items()}
-                )
-                result = update(before)
-                after = before if result is None else result
-                cursor.updateRow(self._get_values(after, properties))
-                count += 1
-        return count
-
-    def update(self, items: Union[T, List[T]]) -> None:
+    def update(self, items: Union[T, List[T]]) -> List[int]:
         items = list(items) if isinstance(items, Iterable) else [items]
         cache = {self._get_oid(x): x for x in items}
-        for where_clause in self._get_where_clauses(items):
-            self.update_where(where_clause, lambda x: cache[self._get_oid(x)])
+        ids: Set[int] = set()
+        for where_clause in self._get_where_clauses_from_ids(items):
+            for id in self.update_where(
+                where_clause, lambda x: cache[self._get_oid(x)]
+            ):
+                ids.add(id)
+        return list(ids)
 
-    def delete_where(self, filter: Union[str, Callable[[T], bool], None]) -> int:
-        where_clause = (
-            to_sql(filter, self.info.properties) if callable(filter) else filter
-        )
+    def delete_where(self, filter: Union[str, Callable[[T], bool], None]) -> List[int]:
         data_path = self.info.data_path
-        count = 0
+        ids: Set[int] = set()
+        for where_clause in self._get_where_clauses_from_filter(filter):
+            with arcpy.da.UpdateCursor(data_path, self.info.oid_field, where_clause) as cursor:  # type: ignore
+                for row in cursor:
+                    cursor.deleteRow()
+                    ids.add(row[0])
+        return list(ids)
 
-        with arcpy.da.UpdateCursor(data_path, self.info.oid_field, where_clause) as cursor:  # type: ignore
-            for _ in cursor:
-                cursor.deleteRow()
-                count += 1
-        return count
+    def delete(
+        self, items: Union[T, int, str, Iterable[T], Iterable[int], Iterable[str]]
+    ) -> List[int]:
+        ids: Set[int] = set()
+        for where_clause in self._get_where_clauses_from_ids(items):
+            for id in self.delete_where(where_clause):
+                ids.add(id)
+        return list(ids)
 
-    def delete(self, items: Union[T, int, str, List[T], List[int], List[str]]) -> None:
-        for where_clause in self._get_where_clauses(items):
-            self.delete_where(where_clause)
-
-    def _create(self, **kwargs: Any):
+    def _create(self, **kwargs: Any) -> T:
         if self.info.has_default_constructor:
             item = self.info.model()
             for property in self.info.properties:
@@ -148,8 +159,8 @@ class FeatureClass(Generic[T]):
             values.append(getattr(item, property) if hasattr(item, property) else None)
         return values
 
-    def _get_where_clauses(
-        self, obj: Union[T, int, str, List[T], List[int], List[str]]
+    def _get_where_clauses_from_ids(
+        self, obj: Union[T, int, str, Iterable[T], Iterable[int], Iterable[str]]
     ) -> List[str]:
         where_clauses: List[str] = []
         ids = list(self._get_ids(obj))
@@ -164,11 +175,19 @@ class FeatureClass(Generic[T]):
                 where_clauses.append(
                     f"GlobalID IN ({','.join(map(self._quote, chunk))})"
                 )
-
-        if not where_clauses:
-            where_clauses.append("1=0")
-
         return where_clauses
+
+    def _get_where_clauses_from_filter(
+        self,
+        filter: Union[str, Callable[[T], bool], Iterable[int], Iterable[str], None],
+    ) -> List[str]:
+        if filter is None:
+            return [""]
+        if isinstance(filter, str):
+            return [filter]
+        if callable(filter):
+            return [to_sql(filter, self.info.properties)]
+        return self._get_where_clauses_from_ids(filter)
 
     def _quote(self, value: Any) -> str:
         return f"'{value}'"
@@ -178,7 +197,7 @@ class FeatureClass(Generic[T]):
             yield obj
         elif isinstance(obj, self.info.model):
             yield self._get_oid(obj)
-        elif isinstance(obj, list):
+        else:
             for o in obj:
                 for id in self._get_ids(o):
                     yield id
