@@ -45,7 +45,7 @@ def get_glaciers(feature_class: FeatureClass[TGlacier]):
 
 
 def insert_glaciers(feature_class: FeatureClass[TGlacier]):
-    glacier = feature_class.get(12)
+    glacier = feature_class.get(3)
     assert glacier
     glacier2 = feature_class.insert(glacier)
     assert glacier2.objectid != glacier.objectid
@@ -75,12 +75,18 @@ def update_glaciers(feature_class: FeatureClass[TGlacier]):
             assert glacier.feature != feature
 
 
-def try_mines(feature_class: FeatureClass[TGlacier]):
+def delete_glaciers(feature_class: FeatureClass[TGlacier], *deletes: int):
+    ids = feature_class.delete(deletes)
+    assert set(ids) == set(deletes)
+
+
+def try_mines(feature_class: FeatureClass[TGlacier], *deletes: int):
     info_glaciers(feature_class)
     read_glaciers(feature_class)
     get_glaciers(feature_class)
     insert_glaciers(feature_class)
     update_glaciers(feature_class)
+    delete_glaciers(feature_class, *deletes)
 
 
 class R:
@@ -97,8 +103,10 @@ class Glacier1(R, F):
 
 
 def test_glacier1():
-    try_mines(FeatureClass[Glacier1]("main.glaciers_p", feature="FEATURE_E"))
-    try_mines(FeatureClass[Glacier1]("main.glaciers_p", feature="FEATURE_F"))
+    try_mines(
+        FeatureClass[Glacier1]("main.glaciers_p", feature="FEATURE_E"), 10, 11, 12
+    )
+    try_mines(FeatureClass[Glacier1]("main.glaciers_p", feature="FEATURE_F"), 13, 14)
 
 
 class Glacier2:
@@ -109,8 +117,8 @@ class Glacier2:
 
 
 def test_glacier2():
-    try_mines(FeatureClass[Glacier2]("main.glaciers_p", feature="FEATURE_E"))
-    try_mines(FeatureClass[Glacier2]("main.glaciers_p", feature="FEATURE_F"))
+    try_mines(FeatureClass[Glacier2]("main.glaciers_p", feature="FEATURE_E"), 15, 16)
+    try_mines(FeatureClass[Glacier2]("main.glaciers_p", feature="FEATURE_F"), 17)
 
 
 @dataclass
@@ -122,8 +130,8 @@ class Glacier3:
 
 
 def test_glacier3():
-    try_mines(FeatureClass[Glacier3]("main.glaciers_p", feature="FEATURE_E"))
-    try_mines(FeatureClass[Glacier3]("main.glaciers_p", feature="FEATURE_F"))
+    try_mines(FeatureClass[Glacier3]("main.glaciers_p", feature="FEATURE_E"), 18)
+    try_mines(FeatureClass[Glacier3]("main.glaciers_p", feature="FEATURE_F"), 19, 20)
 
 
 @dataclass
@@ -146,8 +154,10 @@ class Glacier4(Feature[arcpy.Polygon]):
 
 
 def test_glacier4():
-    try_mines(FeatureClass[Glacier4]("main.glaciers_p", feature="FEATURE_E"))
-    try_mines(FeatureClass[Glacier4]("main.glaciers_p", feature="FEATURE_F"))
+    try_mines(FeatureClass[Glacier4]("main.glaciers_p", feature="FEATURE_E"), 21, 22)
+    try_mines(
+        FeatureClass[Glacier4]("main.glaciers_p", feature="FEATURE_F"), 23, 24, 25
+    )
 
 
 def test_glacier5():
@@ -158,4 +168,4 @@ def test_glacier5():
         feature="FEATURE_E",
         shape="SHAPE",
     )
-    try_mines(fc)
+    try_mines(fc, 26, 27)
