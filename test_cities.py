@@ -1,15 +1,15 @@
 import arcpy
 import shutil
 from dataclasses import dataclass, field
-from datetime import datetime
 from random import randrange
+from time import sleep
 from types import SimpleNamespace
-from typing import Generic, List, Optional, Protocol, TypeVar
+from typing import Any, Generic, List, Protocol, TypeVar, Union
 
-from archaic import FeatureClass
+from archaic import FeatureClass, ObjectID, GlobalID, EditTracking
 
 geodatabase = ".data/world.geodatabase"
-test_geodatabase = f".data/test_{datetime.now():%Y_%m_%d_%H_%M_%S}.geodatabase"
+test_geodatabase = ".data/test.geodatabase"
 shutil.copyfile(geodatabase, test_geodatabase)
 arcpy.env.workspace = test_geodatabase  # type: ignore
 
@@ -196,7 +196,7 @@ def test_city3():
 
 @dataclass
 class Row:
-    objectid: int
+    objectid: int = field(default=-1, init=False)
 
 
 TGeometry = TypeVar("TGeometry", bound=arcpy.Geometry)
@@ -216,7 +216,7 @@ class City4(Feature[arcpy.PointGeometry]):
 def test_city4():
     def create():
         for n in range(1000):
-            city = City4(-1, p, f"City4:{n}", n)
+            city = City4(p, f"City4:{n}", n)
             yield city
 
     try_cities(FeatureClass[City4]("cities"), list(create()), 17, 18)
@@ -240,33 +240,164 @@ def test_city5():
             city.shape = p
             yield city
 
-    try_cities(fc, [], 18, 19, 20)
+    try_cities(fc, list(create()), 18, 19, 20)
 
 
 @dataclass
-class Tracked:
-    created_user: Optional[str] = field(init=False)
-    created_date: Optional[datetime] = field(init=False)
-    last_edited_user: Optional[str] = field(init=False)
-    last_edited_date: Optional[datetime] = field(init=False)
-
-
-@dataclass
-class City6(Tracked):
-    objectid: int = field(default=-1, init=False)
+class City6(ObjectID, GlobalID, EditTracking):
     city_name: str
     pop: int
-    shape: arcpy.PointGeometry
+    shape: Union[arcpy.PointGeometry, Any]
 
 
 def test_city6():
     fc = FeatureClass[City6]("cities")
     assert fc
 
-    city = fc.insert(City6("Lillooet", 1234, p))
-    assert city.city_name == "Lillooet"
-    assert city.pop == 1234
-    assert city.created_date
-    assert city.created_user
-    assert city.last_edited_date
-    assert city.last_edited_user
+    city1 = City6("Lillooet", 1234, (-120, 50))
+    assert city1.objectid == -1
+    assert city1.globalid == ""
+    assert city1.city_name == "Lillooet"
+    assert city1.pop == 1234
+    assert city1.created_date is None
+    assert city1.created_user is None
+    assert city1.last_edited_date is None
+    assert city1.last_edited_user is None
+
+    city2 = fc.insert(city1)
+    assert city2.objectid > -1
+    assert city2.globalid
+    assert city2.city_name == "Lillooet"
+    assert city2.pop == 1234
+    assert city2.created_date
+    assert city2.created_user
+    assert city2.last_edited_date
+    assert city2.last_edited_user
+
+    sleep(2)
+    city2.pop = 7777
+    fc.update(city2)
+
+    city3 = fc.get(city2.objectid)
+    city4 = fc.get(city2.globalid)
+    assert city3 and city4 and city3.objectid == city4.objectid
+    assert city3.pop == 7777
+    assert city3.last_edited_date
+    assert city3.last_edited_date > city2.last_edited_date
+    assert city3.objectid == city2.objectid
+    assert city3.globalid == city2.globalid
+
+    fc.delete(city3)
+    city4 = fc.get(city2.objectid)
+    assert city4 is None
+
+    def update(city: City6):
+        city.city_name = "Ottawa"
+
+    fc.update_where(lambda f: f.pop < 10000, update)
+
+    for city in fc.read(lambda f: f.pop < 10000):
+        assert city.city_name == "Ottawa"
+
+
+class City7(ObjectID, GlobalID, EditTracking):
+    city_name: str
+    pop: int
+    shape: Union[arcpy.PointGeometry, Any]
+
+
+def test_city7():
+    fc = FeatureClass[City7]("cities")
+    assert fc
+
+    city1 = City7()
+    city1.city_name = "Lillooet"
+    city1.pop = 1234
+    city1.shape = (-120, 50)
+
+    city2 = fc.insert(city1)
+    assert city2.objectid > -1
+    assert city2.globalid
+    assert city2.city_name == "Lillooet"
+    assert city2.pop == 1234
+    assert city2.created_date
+    assert city2.created_user
+    assert city2.last_edited_date
+    assert city2.last_edited_user
+
+    sleep(2)
+    city2.pop = 8888
+    fc.update(city2)
+
+    city3 = fc.get(city2.objectid)
+    city4 = fc.get(city2.globalid)
+    assert city3 and city4 and city3.objectid == city4.objectid
+    assert city3.pop == 8888
+    assert city3.last_edited_date
+    assert city3.last_edited_date > city2.last_edited_date
+    assert city3.objectid == city2.objectid
+    assert city3.globalid == city2.globalid
+
+    fc.delete(city3)
+    city4 = fc.get(city2.objectid)
+    assert city4 is None
+
+    def update(city: City7):
+        city.city_name = "Ottawa"
+
+    fc.update_where(lambda f: f.pop < 10000, update)
+
+    for city in fc.read(lambda f: f.pop < 10000):
+        assert city.city_name == "Ottawa"
+
+
+@dataclass(init=False)
+class City8(ObjectID, GlobalID, EditTracking):
+    city_name: str
+    pop: int
+    shape: Union[arcpy.PointGeometry, Any]
+
+
+def test_city8():
+    fc = FeatureClass[City8]("cities")
+    assert fc
+
+    city1 = City8()
+    city1.city_name = "Lillooet"
+    city1.pop = 1234
+    city1.shape = (-120, 50)
+
+    city2 = fc.insert(city1)
+    assert city2.objectid > -1
+    assert city2.globalid
+    assert city2.city_name == "Lillooet"
+    assert city2.pop == 1234
+    assert city2.created_date
+    assert city2.created_user
+    assert city2.last_edited_date
+    assert city2.last_edited_user
+
+    sleep(2)
+    city2.pop = 9999
+    fc.update(city2)
+
+    city3 = fc.get(city2.objectid)
+    city4 = fc.get(city2.globalid)
+    assert city3 and city4 and city3.objectid == city4.objectid
+    assert city3.pop == 9999
+    assert city3.last_edited_date
+    assert city3.last_edited_date > city2.last_edited_date
+    assert city3.objectid == city2.objectid
+    assert city3.globalid == city2.globalid
+
+    fc.delete(city3)
+    city4 = fc.get(city2.objectid)
+    assert city4 is None
+
+    def update(city: City8):
+        city.city_name = "Ottawa"
+
+    fc.update_where(lambda f: f.pop < 10000, update)
+
+    for city in fc.read(lambda f: f.pop < 10000):
+        assert city.city_name == "Ottawa"
