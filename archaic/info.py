@@ -2,7 +2,6 @@ import arcpy
 import re
 
 from inspect import signature
-from itertools import chain
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Dict, Generic, Set, Type, TypeVar
 
@@ -19,16 +18,13 @@ class Info(Generic[T]):
         else:
             model = SimpleNamespace
 
-        keys = chain(
-            signature(model.__init__).parameters.keys(),
-            signature(model.__new__).parameters.keys(),
-        )
-
         description = arcpy.Describe(feature_class._data_path)
 
         # Members.
         self.model: Type[T] = model  # type: ignore
-        self.has_default_constructor = len(set(keys)) == 3
+        self.keys = [
+            key for key in signature(model.__init__).parameters.keys() if key != "self"
+        ]
         self.data_path: str = description.catalogPath  # type: ignore
         self.oid_field: str
         self.oid_property: str

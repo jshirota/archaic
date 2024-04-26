@@ -1,10 +1,10 @@
 import arcpy
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from random import randrange
 from types import SimpleNamespace
-from typing import Generic, List, Protocol, TypeVar
+from typing import Generic, List, Optional, Protocol, TypeVar
 
 from archaic import FeatureClass
 
@@ -179,7 +179,7 @@ def test_city2():
 
 @dataclass
 class City3:
-    objectid: int
+    objectid: int = field(default=-1, init=False)
     city_name: str
     pop: int
     shape: arcpy.PointGeometry
@@ -188,7 +188,7 @@ class City3:
 def test_city3():
     def create():
         for n in range(1000):
-            city = City3(-1, f"City3:{n}", n, p)
+            city = City3(f"City3:{n}", n, p)
             yield city
 
     try_cities(FeatureClass[City3]("cities"), list(create()), 15, 16)
@@ -241,3 +241,32 @@ def test_city5():
             yield city
 
     try_cities(fc, [], 18, 19, 20)
+
+
+@dataclass
+class Tracked:
+    created_user: Optional[str] = field(init=False)
+    created_date: Optional[datetime] = field(init=False)
+    last_edited_user: Optional[str] = field(init=False)
+    last_edited_date: Optional[datetime] = field(init=False)
+
+
+@dataclass
+class City6(Tracked):
+    objectid: int = field(default=-1, init=False)
+    city_name: str
+    pop: int
+    shape: arcpy.PointGeometry
+
+
+def test_city6():
+    fc = FeatureClass[City6]("cities")
+    assert fc
+
+    city = fc.insert(City6("Lillooet", 1234, p))
+    assert city.city_name == "Lillooet"
+    assert city.pop == 1234
+    assert city.created_date
+    assert city.created_user
+    assert city.last_edited_date
+    assert city.last_edited_user

@@ -144,14 +144,19 @@ class FeatureClass(Generic[T]):
         return list(ids)
 
     def _create(self, **kwargs: Any) -> T:
-        if self.info.has_default_constructor:
-            item = self.info.model()
-            for property in self.info.properties:
-                setattr(item, property, kwargs.get(property))
-            return item
-        return self.info.model(
-            **{k: v for k, v in kwargs.items() if k in self.info.properties}
+        item = self.info.model(
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k in self.info.properties and k in self.info.keys
+            }
         )
+
+        for property in self.info.properties:
+            if property not in self.info.keys:
+                setattr(item, property, kwargs.get(property))
+
+        return item
 
     def _get_values(self, item: T, properties: Iterable[str]) -> List[Any]:
         values: List[Any] = []
