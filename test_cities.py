@@ -1,15 +1,15 @@
 import arcpy
 import shutil
 from dataclasses import dataclass
+from datetime import datetime
 from random import randrange
 from types import SimpleNamespace
 from typing import Generic, List, Protocol, TypeVar
 
 from archaic import FeatureClass
 
-
-geodatabase = r".data\\world.geodatabase"
-test_geodatabase = r".data\\test.geodatabase"
+geodatabase = ".data/world.geodatabase"
+test_geodatabase = f".data/test_{datetime.now():%Y_%m_%d_%H_%M_%S}.geodatabase"
 shutil.copyfile(geodatabase, test_geodatabase)
 arcpy.env.workspace = test_geodatabase  # type: ignore
 
@@ -24,7 +24,7 @@ class City(Protocol):
 TCity = TypeVar("TCity", bound=City)
 
 
-p = FeatureClass("cities").get(40).Shape
+p = FeatureClass("cities").get(40).Shape  # type: ignore
 
 
 def info_cities(feature_class: FeatureClass[TCity]):
