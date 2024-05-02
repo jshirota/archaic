@@ -5,3 +5,5 @@ test*.geodatabase
 *.geodatabase-conch
 *.geodatabase-shm
 *.geodatabase-wal
+
+temp.ipynb

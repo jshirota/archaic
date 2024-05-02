@@ -1,7 +1,7 @@
 import arcpy
 from typing import Any, Callable, Generic, Iterable, List, Optional, Set, TypeVar, Union
-from archaic.info import Info
-from archaic.predicate import to_sql
+from archaic._info import Info
+from archaic._predicate import to_sql
 
 T = TypeVar("T")
 
@@ -79,6 +79,14 @@ class FeatureClass(Generic[T]):
         return None
 
     def insert_many(self, items: Iterable[T], **kwargs: Any) -> List[int]:
+        """Inserts multiple items.
+
+        Args:
+            items: Items to insert.
+
+        Returns:
+            List[int]: List of object ids.
+        """
         data_path = self.info.data_path
         fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
@@ -88,6 +96,14 @@ class FeatureClass(Generic[T]):
             ]
 
     def insert(self, item: T) -> T:
+        """Inserts a single item.
+
+        Args:
+            item: Item to insert.
+
+        Returns:
+            T: Created item.
+        """
         return self.get(self.insert_many([item])[0])  # type: ignore
 
     def update_where(
@@ -96,6 +112,15 @@ class FeatureClass(Generic[T]):
         update: Callable[[T], Union[None, T]],
         **kwargs: Any,
     ) -> List[int]:
+        """Updates items based on a procedure.
+
+        Args:
+            filter: Where clause, lambda expression, object ids or global ids.  If None, all items are updated.
+            update: Update procedure.  It may return an item (replacement) or None (mutation).
+
+        Returns:
+            List[int]: List of object ids.
+        """
         data_path = self.info.data_path
         fields = list(self.info.edit_properties.values())
         properties = self.info.edit_properties
@@ -114,6 +139,14 @@ class FeatureClass(Generic[T]):
         return list(ids)
 
     def update(self, items: Union[T, List[T]]) -> List[int]:
+        """Updates items based on their mutated state.
+
+        Args:
+            items: Items to update.
+
+        Returns:
+            List[int]: List of object ids.
+        """
         items = list(items) if isinstance(items, Iterable) else [items]
         cache = {self._get_oid(x): x for x in items}
         ids: Set[int] = set()
@@ -125,6 +158,14 @@ class FeatureClass(Generic[T]):
         return list(ids)
 
     def delete_where(self, filter: Union[str, Callable[[T], bool], None]) -> List[int]:
+        """Deletes items based on a filter.
+
+        Args:
+            filter: Where clause or lambda expression.  If None, all items are deleted.
+
+        Returns:
+            List[int]: List of object ids.
+        """
         data_path = self.info.data_path
         ids: Set[int] = set()
         for where_clause in self._get_where_clauses_from_filter(filter):
@@ -137,6 +178,14 @@ class FeatureClass(Generic[T]):
     def delete(
         self, items: Union[T, int, str, Iterable[T], Iterable[int], Iterable[str]]
     ) -> List[int]:
+        """Deletes items specified or by object ids or global ids.
+
+        Args:
+            items: Items, object ids or global ids.
+
+        Returns:
+            List[int]: List of object ids.
+        """
         ids: Set[int] = set()
         for where_clause in self._get_where_clauses_from_ids(items):
             for id in self.delete_where(where_clause):
@@ -151,11 +200,9 @@ class FeatureClass(Generic[T]):
                 if k in self.info.properties and k in self.info.keys
             }
         )
-
         for property in self.info.properties:
             if property not in self.info.keys:
                 setattr(item, property, kwargs.get(property))
-
         return item
 
     def _get_values(self, item: T, properties: Iterable[str]) -> List[Any]:
