@@ -1,7 +1,6 @@
 import arcpy
 import re
 
-from inspect import signature
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Dict, Generic, Set, Type, TypeVar
 
@@ -22,9 +21,16 @@ class Info(Generic[T]):
 
         # Members.
         self.model: Type[T] = model  # type: ignore
-        self.keys = [
-            key for key in signature(model.__init__).parameters.keys() if key != "self"
-        ]
+        if hasattr(model, "__dataclass_fields__"):
+            self.keys = list(model.__dataclass_fields__.keys())  # type: ignore
+        elif hasattr(model, "model_fields"):
+            self.keys = list(model.model_fields.keys())  # type: ignore
+        elif hasattr(model, "__fields__"):
+            self.keys = list(model.__fields__.keys())  # type: ignore
+        else:
+            from inspect import signature
+
+            self.keys = [k for k in signature(model.__init__).parameters if k != "self"]
         self.data_path: str = description.catalogPath  # type: ignore
         self.oid_field: str
         self.oid_property: str

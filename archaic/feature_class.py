@@ -56,7 +56,9 @@ class FeatureClass(Generic[T]):
         fields = list(self.info.properties.values())
         properties = self.info.properties
         for where_clause in self._get_where_clauses_from_filter(filter):
-            with arcpy.da.SearchCursor(data_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
+            with arcpy.da.SearchCursor(
+                data_path, fields, where_clause, **kwargs
+            ) as cursor:  # type: ignore
                 for row in cursor:
                     d = dict(zip(fields, row))
                     yield self._create(
@@ -78,7 +80,7 @@ class FeatureClass(Generic[T]):
                 return item
         return None
 
-    def insert_many(self, items: Iterable[T], **kwargs: Any) -> List[int]:
+    def insert_many(self, items: Iterable[T], **kwargs: Any) -> List[int]:  # type: ignore
         """Inserts multiple items.
 
         Args:
@@ -126,7 +128,9 @@ class FeatureClass(Generic[T]):
         properties = self.info.edit_properties
         ids: Set[int] = set()
         for where_clause in self._get_where_clauses_from_filter(filter):
-            with arcpy.da.UpdateCursor(data_path, fields, where_clause, **kwargs) as cursor:  # type: ignore
+            with arcpy.da.UpdateCursor(
+                data_path, fields, where_clause, **kwargs
+            ) as cursor:  # type: ignore
                 for row in cursor:
                     d = dict(zip(fields, row))
                     before = self._create(
@@ -169,7 +173,9 @@ class FeatureClass(Generic[T]):
         data_path = self.info.data_path
         ids: Set[int] = set()
         for where_clause in self._get_where_clauses_from_filter(filter):
-            with arcpy.da.UpdateCursor(data_path, self.info.oid_field, where_clause) as cursor:  # type: ignore
+            with arcpy.da.UpdateCursor(
+                data_path, self.info.oid_field, where_clause
+            ) as cursor:  # type: ignore
                 for row in cursor:
                     cursor.deleteRow()
                     ids.add(row[0])
