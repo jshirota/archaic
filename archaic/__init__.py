@@ -1,4 +1,6 @@
-# flake8: noqa
+from .archaic import Mapper
 
-from archaic.feature_class import FeatureClass
-from archaic._models import *
+
+__all__ = ["Mapper"]
+
+__version__ = "0.2.8"

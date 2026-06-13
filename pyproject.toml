@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "archaic"
-version = "0.1.5"
+version = "0.2.8"
 authors = [
   { name="Jiro Shirota", email="jshirota@gmail.com" },
 ]
@@ -21,7 +21,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "ipykernel>=6.31.0",
-    "ipywidgets>=8.1.8",
-    "ruff>=0.15.11",
+    "ipykernel>=6.29.5",
+    "ruff>=0.15.17",
 ]
+
+[tool.setuptools.packages.find]
+include = ["archaic*"]
+exclude = []
+namespaces = false
